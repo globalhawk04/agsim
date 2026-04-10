@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rumen H₂ Competition Simulator – Interaction Web</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #05080f;
+      --surface: #0a0e17;
+      --surface2: #101522;
+      --border: #1c2333;
+      --text: #c5cad6;
+      --muted: #566077;
+      --source: #34d399;
+      --oxygen: #3b82f6;
+      --nitrate: #a855f7;
+      --sulfate: #f59e0b;
+      --methane: #0ea5e9;
+      --acetogen: #10b981;
+      --h2: #f97316;
+      --detox: #fbbf24;
+      --warn: #ef4444;
+      --toxin: #f43f5e;
+      /* Base font size — driven by JS font-size control */
+      --fs: 13px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: var(--fs);
+    }
+
+    /* ── HEADER ── */
+    #hdr {
+      height: auto; min-height: 52px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; flex-wrap: wrap;
+      padding: 8px 16px; gap: 10px;
+      background: var(--surface); flex-shrink: 0;
+    }
+    #hdr h1 { font-size: clamp(0.9em, 2vw, 1.25em); font-weight: 600; white-space: nowrap; }
+    #hdr .subtitle {
+      font-size: clamp(0.65em, 1.2vw, 0.85em);
+      color: var(--muted); flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* Font-size control */
+    #fsctrl {
+      display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+    }
+    .fsbtn {
+      width: 26px; height: 26px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--surface2);
+      color: var(--text); font-size: 0.95em; font-family: inherit;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s, background 0.15s; line-height: 1;
+      user-select: none;
+    }
+    .fsbtn:hover { border-color: var(--detox); background: rgba(251,191,36,0.1); }
+    #fslabel { font-size: 0.7em; color: var(--muted); min-width: 28px; text-align: center; }
+
+    /* Action toggles */
+    .cofeed-toggle {
+      display: flex; align-items: center; gap: 7px;
+      font-size: clamp(0.65em, 1.2vw, 0.82em);
+      color: var(--muted); cursor: pointer; user-select: none;
+      padding: 5px 11px; border: 1px solid var(--border); border-radius: 20px;
+      background: var(--surface2); transition: all 0.2s; flex-shrink: 0;
+    }
+    .cofeed-toggle:hover { border-color: var(--detox); color: var(--detox); }
+    .cofeed-toggle.active { border-color: var(--detox); color: var(--detox); background: rgba(251,191,36,0.08); }
+    .cofeed-toggle .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); transition: all 0.2s; flex-shrink: 0; }
+    .cofeed-toggle.active .dot { background: var(--detox); box-shadow: 0 0 6px var(--detox); }
+
+    /* ── MAIN LAYOUT ── */
+    #app {
+      display: flex;
+      height: calc(100vh - var(--hdr-h, 52px));
+      flex-direction: row;   /* desktop: side-by-side */
+    }
+
+    /* Canvas side */
+    #cside {
+      flex: 1; position: relative; overflow: hidden;
+      border-right: 1px solid var(--border);
+      background: radial-gradient(circle at 10% 50%, #0a0e17 0%, #03050a 100%);
+      min-height: 0;
+    }
+    #cvs { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+    /* H₂ bar */
+    #h2bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(5,8,15,0.96); border-top: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; align-items: center;
+      padding: 10px 16px; gap: 6px 16px;
+      backdrop-filter: blur(6px); z-index: 20;
+    }
+    #h2bar label { font-size: 0.78em; color: var(--muted); white-space: nowrap; font-weight: 600; }
+    .hval { font-size: 1em; color: var(--h2); font-weight: 700; min-width: 90px; }
+    .hval.aw { color: #0ea5e9; }
+    .slider-group { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 180px; }
+    #h2bar input[type=range] { flex: 1; min-width: 60px; accent-color: var(--h2); }
+    #h2bar input#awsl { accent-color: #0ea5e9; }
+    #h2bar-hints {
+      width: 100%; display: flex; justify-content: space-between;
+      font-size: 0.68em; color: var(--muted);
+    }
+
+    /* Right panel */
+    #panel {
+      width: clamp(280px, 38vw, 540px);
+      flex-shrink: 0; display: flex; flex-direction: column;
+      background: var(--surface); border-left: 1px solid var(--border);
+    }
+
+    #tabs {
+      display: grid; grid-template-columns: repeat(6, 1fr);
+      border-bottom: 1px solid var(--border); background: var(--bg);
+      flex-shrink: 0;
+    }
+    .tab {
+      padding: 10px 3px; font-size: clamp(0.6em, 1vw, 0.78em);
+      letter-spacing: 0.02em; font-weight: 500;
+      text-align: center; cursor: pointer; color: var(--muted);
+      border-right: 1px solid var(--border); border-bottom: 2px solid transparent;
+      transition: all .2s ease; line-height: 1.2;
+    }
+    .tab:last-child { border-right: none; }
+    .tab:hover { background: var(--surface2); color: #fff; }
+    .tab.on { color: inherit; border-bottom-color: inherit; background: rgba(255,255,255,0.04); font-weight: 600; }
+
+    #pcontent {
+      flex: 1; overflow-y: auto;
+      padding: clamp(12px, 2.5vw, 22px);
+      display: flex; flex-direction: column; gap: clamp(14px, 2vw, 22px);
+    }
+    #pcontent::-webkit-scrollbar { width: 5px; }
+    #pcontent::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Panel text elements — all relative to --fs */
+    .sec-head {
+      font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); margin-bottom: 10px; padding-bottom: 6px;
+      border-bottom: 1px solid var(--border); font-weight: 600;
+    }
+    .pw-name { font-size: 1.15em; font-weight: 700; margin-bottom: 6px; }
+    .pw-frm {
+      font-size: 0.88em; background: var(--surface2); padding: 7px 11px; border-radius: 6px;
+      border-left: 3px solid #64748b; display: inline-block; margin-bottom: 10px;
+    }
+    .pw-org { font-size: 0.8em; color: var(--muted); margin-bottom: 10px; font-style: italic; }
+    .pw-dsc { font-size: 0.84em; color: #8a93a6; line-height: 1.65; }
+
+    .dg-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; font-size: 0.82em; }
+    .dg-nm { width: 100px; flex-shrink: 0; font-weight: 500; }
+    .dg-trk { flex: 1; height: 7px; background: var(--surface2); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+    .dg-fil { height: 100%; border-radius: 4px; transition: width .4s cubic-bezier(0.4, 0, 0.2, 1); }
+    .dg-val { width: 76px; text-align: right; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+
+    .enz {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+      padding: clamp(10px, 1.5vw, 13px); margin-bottom: 8px; position: relative;
+    }
+    .enz-st { font-size: 0.7em; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 5px; font-weight: 600; color: var(--muted); }
+    .enz-nm { font-size: 0.88em; font-weight: 600; margin-bottom: 6px; }
+    .enz-rx { font-size: 0.8em; color: #a1a9ba; margin-bottom: 6px; font-family: monospace; word-break: break-word; }
+    .enz-nt { font-size: 0.8em; color: #8a93a6; line-height: 1.55; }
+
+    .toxin-badge {
+      position: absolute; top: 10px; right: 10px; font-size: 0.65em;
+      background: rgba(244,63,94,0.15); color: var(--toxin);
+      padding: 2px 8px; border-radius: 9999px; border: 1px solid rgba(244,63,94,0.3); font-weight: 600;
+    }
+    .detox-badge {
+      position: absolute; top: 10px; right: 10px; font-size: 0.65em;
+      background: rgba(251,191,36,0.15); color: var(--detox);
+      padding: 2px 8px; border-radius: 9999px; border: 1px solid rgba(251,191,36,0.3); font-weight: 600;
+    }
+
+    .wbox {
+      background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 6px; padding: clamp(10px,1.5vw,13px); border-left: 4px solid var(--warn);
+    }
+    .wtit { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.06em; color: var(--warn); margin-bottom: 6px; font-weight: 600; }
+    .wbod { font-size: 0.84em; color: #fca5a5; line-height: 1.6; }
+
+    .cofeed-box {
+      background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.25);
+      border-radius: 6px; padding: clamp(10px,1.5vw,13px); border-left: 4px solid var(--detox); display: none;
+    }
+    .cofeed-box.visible { display: block; }
+    .cftit { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.06em; color: var(--detox); margin-bottom: 6px; font-weight: 600; }
+    .cfbod { font-size: 0.84em; color: #fde68a; line-height: 1.6; }
+
+    #q-log {
+      background: #000; border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px; height: 120px; overflow-y: auto;
+      font-size: 0.72em; color: #86efac; line-height: 1.55;
+    }
+    .log-line { margin-bottom: 3px; opacity: 0.85; }
+    .log-line.err { color: var(--warn); }
+    .log-line.dtx { color: var(--detox); }
+
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.72em; color: var(--muted); }
+    .legend-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .legend-line { width: 16px; height: 2px; flex-shrink: 0; border-top: 2px dashed; }
+
+    /* ── MOBILE: stack vertically ── */
+    @media (max-width: 700px) {
+      #app { flex-direction: column; }
+      #cside { flex: 0 0 45vh; border-right: none; border-bottom: 1px solid var(--border); }
+      #panel { width: 100%; flex: 1; border-left: none; }
+      #tabs { grid-template-columns: repeat(3, 1fr); }
+      #hdr .subtitle { display: none; }
+      .slider-group { min-width: 120px; }
+      #h2bar-hints { display: none; }
+      #h2bar { padding: 8px 12px; }
+      .dg-nm { width: 80px; }
+      .dg-val { width: 62px; }
+    }
+
+    /* ── LARGE / PRESENTATION screens ── */
+    @media (min-width: 1400px) {
+      #panel { width: clamp(460px, 32vw, 600px); }
+    }
+    @media (min-width: 1800px) {
+      #panel { width: clamp(500px, 28vw, 680px); }
+    }
+  </style>
+</head>
+<body>
+<div id="hdr">
+  <h1>Rumen H₂ Competition Simulator</h1>
+  <div class="subtitle">Thermodynamic Interaction Web · 39 °C · Thauer (1977) · van Zijderveld (2010)</div>
+
+  <!-- Font size control -->
+  <div id="fsctrl" title="Adjust text size">
+    <button class="fsbtn" id="fsdn" aria-label="Decrease font size">A−</button>
+    <span id="fslabel">13px</span>
+    <button class="fsbtn" id="fsup" aria-label="Increase font size">A+</button>
+  </div>
+
+  <div class="cofeed-toggle" id="cofeedBtn" title="Force nitrate + sulfate both active to reveal mutual detoxification circuit">
+    <div class="dot"></div>
+    Co-Feed Mode
+  </div>
+
+  <!-- NEW QUANTUM BUTTON -->
+  <div class="cofeed-toggle" id="quantumBtn" title="Visualize QFT fields, virtual photons, and quantum tunneling">
+    <div class="dot"></div>
+    Quantum View
+  </div>
+</div>
+<div id="app">
+  <div id="cside">
+    <canvas id="cvs"></canvas>
+    <div id="h2bar">
+      <div class="slider-group">
+        <label>H₂ partial pressure:</label>
+        <span class="hval" id="hval">10⁻⁴·⁰ atm</span>
+        <input type="range" id="h2sl" min="-6.5" max="-2" step="0.1" value="-4">
+      </div>
+      <div class="slider-group">
+        <label>Water activity (aᵥᵥ):</label>
+        <span class="hval aw" id="awval">1.00</span>
+        <input type="range" id="awsl" min="0.80" max="1.00" step="0.01" value="1.00">
+      </div>
+      <div id="h2bar-hints">
+        <span>↓ H₂ pressure = sinks more favorable · source harder to run</span>
+        <span>↑ H₂ pressure = source easier · sinks throttled</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div id="tabs"></div>
+    <div id="pcontent"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// CONSTANTS & THERMODYNAMIC MATH
+// ══════════════════════════════════════════════════
+const R = 8.314e-3;   // kJ mol⁻¹ K⁻¹
+const T = 312;         // 39 °C = 312 K
+const SINK_THRESHOLD   = -5.0;
+const SOURCE_THRESHOLD =  0.0;
+
+let cofeedMode = false;
+let quantumMode = false;     // NEW
+let quantumRipples = [];     // NEW
+
+function dgH2(pw) {
+  const rt_ln_ph2 = R * T * (h2lg * Math.LN10);
+  if (pw.is_source) {
+    return (pw.dg_std / pw.h2n) + rt_ln_ph2;
+  } else {
+    const rt_ln_aw = (pw.h2o_n / pw.h2n) * R * T * Math.log(aw);
+    return (pw.dg_std / pw.h2n) - rt_ln_ph2 + rt_ln_aw;
+  }
+}
+
+function isActive(pw) {
+  // Co-feed mode: force nitrate and sulfate active regardless of sliders
+  if (cofeedMode && (pw.id === 'nitrate' || pw.id === 'sulfate')) return true;
+  const thresh = pw.is_source ? SOURCE_THRESHOLD : SINK_THRESHOLD;
+  return dgH2(pw) < thresh;
+}
+
+// ══════════════════════════════════════════════════
+// PATHWAY DATA
+// ══════════════════════════════════════════════════
+const PW = [
+  {
+    id: 'source', tab: 'H₂ Source',
+    name: 'NADH-Dependent H₂ Formation',
+    color: '#34d399',
+    organism: 'Ruminococcus albus, Fibrobacter succinogenes',
+    formula: 'NADH + H⁺ → NAD⁺ + H₂',
+    dg_std: 18.1, h2n: 1, h2o_n: 0, is_source: true,
+    desc: 'This is an H₂ SOURCE. The standard free energy is +18.1 kJ/mol (+ΔG°\'), meaning it is naturally unfavorable. It ONLY proceeds because the H₂ sinks maintain an extremely low H₂ partial pressure — this codependency is Interspecies Hydrogen Transfer.',
+    warn: 'If methanogens are inhibited and H₂ pressure rises, this reaction stalls (+ΔG). Fermenting bacteria must then dump electrons into propionate or lactate instead of acetate, reducing VFA quality.',
+    nodes: [
+      { lbl: 'NADH',  type: 'in',    sub: 'Reductant' },
+      { lbl: 'Hyd',   type: 'inter', sub: 'Hydrogenase' },
+      { lbl: 'H₂',    type: 'out',   sub: 'Gas released' }
+    ],
+    enzymes: [
+      { step: 'Electron Transfer', nm: 'Fe-Fe or Ni-Fe Hydrogenase',
+        rx: 'NADH + H⁺ → NAD⁺ + H₂', dg: '+18.1 kJ/mol',
+        note: 'Catalyzes H₂ formation. Because ΔG°\' > 0, it is strictly dependent on sinks maintaining an H₂ "vacuum" via interspecies hydrogen transfer.',
+        tox: false }
+    ]
+  },
+  {
+    id: 'water', tab: 'Water (O₂)',
+    name: 'Oxygen Scavenging (Aerobic Respiration)',
+    color: '#3b82f6',
+    organism: 'Facultative anaerobes (e.g., Streptococcus bovis)',
+    formula: 'O₂ + 2H₂ → 2H₂O',
+    dg_std: -474.3, h2n: 2, h2o_n: 2, is_source: false,
+    desc: 'Though the rumen is strictly anaerobic, oxygen enters continuously via chewed feed and saliva. Facultative anaerobes rapidly scavenge this O₂. Thermodynamically, this is the most powerful H₂ sink in the rumen.',
+    warn: 'If O₂ scavenging fails, redox potential rises, shutting down methanogenesis and fiber digestion — obligate anaerobes are poisoned by oxygen.',
+    nodes: [
+      { lbl: 'O₂',   type: 'in' },
+      { lbl: 'Cyt',  type: 'inter', sub: 'Cytochromes' },
+      { lbl: 'H₂O',  type: 'out',   sub: 'Water' }
+    ],
+    enzymes: [
+      { step: 'Terminal Step', nm: 'Cytochrome c oxidase (Complex IV)',
+        rx: 'O₂ + 4H⁺ + 4e⁻ → 2H₂O', dg: '≈ −237.1 kJ/mol H₂',
+        note: 'Catalyzes the final 4-electron reduction of O₂ to H₂O. Creates a massive proton-motive force for ATP synthesis.',
+        tox: false }
+    ]
+  },
+  {
+    id: 'nitrate', tab: 'Nitrate (DNRA)',
+    name: 'Dissimilatory Nitrate Reduction (DNRA)',
+    color: '#a855f7',
+    organism: 'Selenomonas ruminantium, Wolinella succinogenes',
+    formula: 'NO₃⁻ + 4H₂ + 2H⁺ → NH₃ + 3H₂O',
+    dg_std: -599.6, h2n: 4, h2o_n: 3, is_source: false,
+    desc: 'Both steps pull H₂ independently from the central pool. Step 1 pulls harder per mol H₂ (−163 kJ) than Step 2 (−145 kJ/mol H₂), so it monopolizes available H₂ and strands toxic Nitrite. The kinetic bottleneck at Step 2 creates the methemoglobinemia risk.',
+    warn: 'Nitrite (NO₂⁻) accumulates when Nap/Nar kinetics (Step 1) outpace Nrf (Step 2). Absorbed NO₂⁻ oxidises Fe²⁺ haemoglobin → Fe³⁺ methaemoglobin, blocking O₂ transport. Risk eliminated by gradual acclimation (10–14 d).',
+    nodes: [
+      { lbl: 'NO₃⁻', type: 'in',    sub: 'Nitrate' },
+      { lbl: 'NO₂⁻', type: 'toxin', sub: 'Nitrite' },
+      { lbl: 'NH₃',  type: 'out',   sub: 'Ammonia' }
+    ],
+    enzymes: [
+      {
+        step: 'Step 1 — Nitrate → Nitrite', nm: 'Nitrate reductase (Nap/Nar)',
+        rx: 'NO₃⁻ + H₂ → NO₂⁻ + H₂O   [−163.2 kJ/mol H₂]',
+        dg: '−163.2 kJ/mol H₂',
+        note: 'Consumes 1 mol H₂. Fast 2-electron reduction via Mo-bisMGD cofactor. Its stronger thermodynamic pull monopolizes H₂, leaving nitrite stranded in the rumen.',
+        tox: true
+      },
+      {
+        step: 'Step 2 — Nitrite → Ammonia (rate-limiting)', nm: 'Nitrite reductase (Nrf)',
+        rx: 'NO₂⁻ + 3H₂ + H⁺ → NH₃ + 2H₂O   [−145.5 kJ/mol H₂]',
+        dg: '−436.4 kJ total (−145.5/mol H₂)',
+        note: 'Consumes 3 mol H₂. Six-electron reduction via pentahaem cytochrome c (Nrf). This is the kinetic bottleneck of DNRA — slower than Step 1, creating nitrite accumulation risk.',
+        tox: false
+      },
+      {
+        step: 'Mutual Detoxification (co-feed only)', nm: 'Chemical AND-Gate · Sulfide × Nitrite',
+        rx: '3HS⁻ + NO₂⁻ + 5H⁺ → 3S + NH₄⁺ + 2H₂O   [−354.5 kJ/mol NO₂⁻]',
+        dg: '−354.5 kJ/mol NO₂⁻',
+        note: 'When sulfate is co-fed, the H₂S produced by SRB reacts directly with stranded NO₂⁻, yielding elemental sulfur (S) and ammonium (NH₄⁺). This bypasses the H₂ pool entirely, neutralizing both toxins simultaneously. Enable Co-Feed Mode to visualize the yellow convergence circuit on the canvas.',
+        tox: false, detox: true
+      }
+    ]
+  },
+  {
+    id: 'sulfate', tab: 'Sulfate (DSR)',
+    name: 'Dissimilatory Sulfate Reduction (DSR)',
+    color: '#f59e0b',
+    organism: 'Desulfovibrio spp., Desulfotomaculum spp.',
+    formula: 'SO₄²⁻ + 4H₂ + H⁺ → HS⁻ + 4H₂O',
+    dg_std: -152.2, h2n: 4, h2o_n: 4, is_source: false,
+    desc: 'A strong H₂ sink that outcompetes methanogenesis when sulfate is available. Requires an upfront ATP activation step — this energy cost limits bacterial growth rate relative to NRB. End product is toxic sulfide (HS⁻).',
+    warn: 'Absorbed HS⁻ inhibits cytochrome c oxidase (Complex IV), halting oxidative phosphorylation. Chronic exposure causes sulfur-induced polioencephalomalacia (S-PEM) — necrotic brain lesions. Max tolerable dietary sulfur: 0.3% DM (concentrate) or 0.5% DM (forage).',
+
+    nodes: [
+      { lbl: 'SO₄²⁻', type: 'in' },
+      { lbl: 'APS',    type: 'inter', sub: 'Activation' },
+      { lbl: 'HS⁻',    type: 'inter', sub: 'Sulfide' },
+      { lbl: 'H₂S',    type: 'toxin', sub: 'Hydrogen sulfide' }
+    ],
+    enzymes: [
+      {
+        step: 'Step 1 — Activation (energy cost)', nm: 'ATP sulfurylase (Sat)',
+        rx: 'SO₄²⁻ + ATP → APS + PPᵢ   [+46 kJ/mol]',
+        dg: '+46 kJ (≈ 2 ATP equiv. total)',
+        note: 'Sulfate is kinetically inert and must be activated before reduction. This upfront energy investment is unique to DSR and explains why SRB grow slower than NRB.',
+        tox: false
+      },
+      {
+        step: 'Step 2 — Sulfite → Sulfide', nm: 'Dissimilatory sulfite reductase (DsrABC)',
+        rx: 'HSO₃⁻ + 3H₂ → HS⁻ + 3H₂O   [≈ −130 kJ]',
+        dg: '≈ −130 kJ',
+        note: 'Six-electron reduction via sirohaem iron-sulfur center. End product HS⁻ is toxic at systemic concentrations above threshold.',
+        tox: true
+      },
+      {
+        step: 'Mutual Detoxification (co-feed only)', nm: 'Chemical AND-Gate · Sulfide × Nitrite',
+        rx: '3HS⁻ + NO₂⁻ + 5H⁺ → 3S + NH₄⁺ + 2H₂O   [−354.5 kJ/mol]',
+        dg: '−354.5 kJ/mol',
+        note: 'When nitrate is co-fed, stranded NO₂⁻ reacts with the HS⁻ produced here to form elemental sulfur (S) and ammonium (NH₄⁺). This cross-reaction prevents both S-PEM and methemoglobinemia. Enable Co-Feed Mode to see the yellow convergence circuit.',
+        tox: false, detox: true
+      }
+    ]
+  },
+  {
+    id: 'methane', tab: 'Methane',
+    name: 'Hydrogenotrophic Methanogenesis',
+    color: '#0ea5e9',
+    organism: 'Methanobrevibacter ruminantium',
+    formula: 'CO₂ + 4H₂ → CH₄ + 2H₂O',
+    dg_std: -131, h2n: 4, h2o_n: 2, is_source: false,
+    desc: 'The primary H₂ disposal pathway under normal rumen conditions. Thermodynamically the weakest exogenous sink, making it the default fallback when no other sinks are present. Employs unique cofactors: F₄₂₀ and Ni-F₄₃₀.',
+    warn: 'Enteric CH₄ represents 2–12% of gross energy intake. The terminal enzyme MCR is covalently inhibited by 3-NOP (Bovaer®), reducing CH₄ by 20–30%. If CH₄ inhibition causes H₂ accumulation without an alternative sink, eructated H₂ is actually a larger energy loss than CH₄.',
+    nodes: [
+      { lbl: 'CO₂',     type: 'in' },
+      { lbl: 'CH₃-CoM', type: 'inter', sub: 'Methyl-CoM' },
+      { lbl: 'CH₄',     type: 'out',   sub: 'Methane' }
+    ],
+    enzymes: [
+      { step: 'Steps 1–4', nm: 'MFR, H₄MPT enzymes, Mtr',
+        rx: 'CO₂ + 3H₂ + CoM-SH → CH₃-S-CoM + 2H₂O', dg: '≈ −85 kJ',
+        note: 'CO₂ sequentially reduced via methanofuran, tetrahydromethanopterin. Generates primary Na⁺-motive force for ATP synthesis.', tox: false },
+      { step: 'Terminal step', nm: 'Methyl-CoM reductase (MCR)',
+        rx: 'CH₃-S-CoM + CoB-SH → CH₄ + CoM-S-S-CoB', dg: '≈ −46 kJ',
+        note: 'Unique Ni²⁺-centred cofactor F₄₃₀ mediates cleavage, releasing CH₄. This enzyme is the target of 3-NOP (Bovaer®).', tox: false }
+    ]
+  },
+  {
+    id: 'acetogen', tab: 'Acetogen',
+    name: 'Wood–Ljungdahl Acetogenesis',
+    color: '#10b981',
+    organism: 'Acetitomaculum ruminis',
+    formula: '2CO₂ + 4H₂ → CH₃COO⁻ + H⁺ + 2H₂O',
+    dg_std: -104.6, h2n: 4, h2o_n: 2, is_source: false,
+    desc: 'The thermodynamically weakest exogenous H₂ sink (ΔG°\' = −104.6 kJ/4H₂). Competitively displaced by methanogens under normal conditions. Crucially, its end product — acetate — is a useful VFA directly absorbed by the host.',
+    warn: 'When methanogenesis is inhibited, H₂ pressure rises and acetogenesis can become competitive ("acetogen rescue"). This is the only methane mitigation strategy that also yields a host-beneficial product, but its poor kinetic competitiveness limits practical impact.',
+    nodes: [
+      { lbl: '2CO₂',   type: 'in' },
+      { lbl: 'Ac-CoA', type: 'inter', sub: 'Acetyl-CoA' },
+      { lbl: 'Acetate', type: 'out',  sub: 'Useful VFA' }
+    ],
+    enzymes: [
+      { step: 'Core Pathway', nm: 'CODH/ACS complex',
+        rx: '2CO₂ + 4H₂ → Acetyl-CoA + H₂O', dg: '≈ −67 kJ',
+        note: 'CO Dehydrogenase/Acetyl-CoA Synthase fuses a methyl group (methyl-branch) with a carbonyl group (carbonyl-branch) and CoA.', tox: false },
+      { step: 'ATP Generation', nm: 'Acetate kinase (Ack)',
+        rx: 'Acetyl-CoA + Pᵢ + ADP → Acetate + ATP + CoA', dg: '≈ −38 kJ',
+        note: 'Substrate-level phosphorylation yields 1 ATP. Net ATP yield is lower than methanogens, explaining competitive disadvantage at low H₂.', tox: false }
+    ]
+  }
+];
+
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+let sel   = 'nitrate';
+let h2lg  = -4.0;
+let aw    = 1.00;
+let pts   = [];
+let npos  = {};
+let SP_NODES = [];
+let logs  = [];
+
+const cvs = document.getElementById('cvs');
+const ctx = cvs.getContext('2d');
+let H2P = { x: 0, y: 0, r: 35 };
+
+// ══════════════════════════════════════════════════
+// LOG
+// ══════════════════════════════════════════════════
+function addLog(msg, type = 'normal') {
+  logs.unshift({ t: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), msg, type });
+  if (logs.length > 30) logs.pop();
+  renderLog();
+}
+function renderLog() {
+  const el = document.getElementById('q-log');
+  if (!el) return;
+  el.innerHTML = logs.map(l => {
+    let cls = 'log-line';
+    if (l.type === 'err') cls += ' err';
+    if (l.type === 'dtx') cls += ' dtx';
+    return `<div class="${cls}">[${l.t}] ${l.msg}</div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+// TAB BUILDER
+// ══════════════════════════════════════════════════
+function buildTabs() {
+  const el = document.getElementById('tabs');
+  el.innerHTML = '';
+  PW.forEach(pw => {
+    const t = document.createElement('div');
+    t.className = `tab ${pw.id === sel ? 'on' : ''}`;
+    t.style.color = pw.id === sel ? pw.color : '';
+    t.style.borderBottomColor = pw.id === sel ? pw.color : '';
+    t.innerHTML = pw.tab;
+    t.onclick = () => { sel = pw.id; buildTabs(); buildPanel(); addLog(`Selected branch: ${pw.name}`); };
+    el.appendChild(t);
+  });
+}
+
+// ══════════════════════════════════════════════════
+// PANEL BUILDER
+// ══════════════════════════════════════════════════
+function buildPanel() {
+  const pw = PW.find(p => p.id === sel);
+  const MAX_DG = 240;
+
+  const dgbars = PW.map(p => {
+    const dg  = dgH2(p);
+    const act = isActive(p);
+    const isSel = p.id === sel;
+    const scaleFactor = Math.sqrt(Math.abs(dg)) / Math.sqrt(MAX_DG);
+    const w = Math.min(100, scaleFactor * 100).toFixed(1);
+    let rows = `
+    <div class="dg-row">
+      <div class="dg-nm" style="color:${act ? p.color : 'var(--muted)'}">${p.tab}</div>
+      <div class="dg-trk"><div class="dg-fil" style="width:${act?w:0}%;background:${p.color};opacity:${isSel?1:0.5}"></div></div>
+      <div class="dg-val" style="color:${act ? p.color : 'var(--warn)'}">${dg > 0 ? '+' : ''}${dg.toFixed(1)} kJ</div>
+    </div>`;
+    if (p.id === 'nitrate') {
+      const no2dg = -145.5;
+      const no2w = Math.min(100, (Math.sqrt(Math.abs(no2dg)) / Math.sqrt(MAX_DG)) * 100).toFixed(1);
+      rows += `
+    <div class="dg-row" style="padding-left:18px; opacity:${act ? 1 : 0.4};">
+      <div class="dg-nm" style="color:${act ? 'var(--toxin)' : 'var(--muted)'}; font-size:10px;">
+        ↳ NO₂⁻ (Nitrite) <span style="font-size:8px;background:rgba(244,63,94,0.15);color:var(--toxin);border:1px solid rgba(244,63,94,0.3);border-radius:9999px;padding:1px 6px;margin-left:3px;vertical-align:middle;">⚠ toxic</span>
+      </div>
+      <div class="dg-trk"><div class="dg-fil" style="width:${act ? no2w : 0}%;background:var(--toxin);opacity:0.75;"></div></div>
+      <div class="dg-val" style="color:${act ? 'var(--toxin)' : 'var(--muted)'};font-size:10px;">${no2dg.toFixed(1)} kJ</div>
+    </div>`;
+    }
+    return rows;
+  }).join('');
+
+  const enzHtml = pw.enzymes.map(e => `
+    <div class="enz">
+      ${e.tox ? `<div class="toxin-badge">⚠ Toxicity Risk</div>` : ''}
+      ${e.detox ? `<div class="detox-badge">✦ Mutual Detox</div>` : ''}
+      <div class="enz-st" style="color:${e.detox ? 'var(--detox)' : pw.color}">${e.step}</div>
+      <div class="enz-nm">${e.nm}</div>
+      <div class="enz-rx">${e.rx}</div>
+      <div class="enz-nt">${e.note}</div>
+    </div>`).join('');
+
+  const bothActive = isActive(PW.find(p => p.id === 'nitrate')) && isActive(PW.find(p => p.id === 'sulfate'));
+
+  document.getElementById('pcontent').innerHTML = `
+    <div>
+      <div class="sec-head">Thermodynamic Status — ΔG per mol H₂</div>
+      ${dgbars}
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--h2)"></div>H₂ pool</div>
+        <div class="legend-item"><div class="legend-line" style="border-color:var(--detox)"></div>Mutual detox circuit</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--toxin)"></div>Toxic intermediate</div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6;">
+        Sinks active when ΔG &lt; ${SINK_THRESHOLD} kJ/mol H₂ · Source active when ΔG &lt; ${SOURCE_THRESHOLD} kJ/mol H₂
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-head">Pathway Details</div>
+      <div class="pw-name" style="color:${pw.color}">${pw.name}</div>
+      <div class="pw-frm">${pw.formula}</div>
+      <div class="pw-org">${pw.organism}</div>
+      <div class="pw-dsc">${pw.desc}</div>
+    </div>
+
+    <div>
+      <div class="sec-head">Key Enzymatic Steps</div>
+      ${enzHtml}
+    </div>
+
+    <div class="cofeed-box ${bothActive ? 'visible' : ''}">
+      <div class="cftit">✦ Mutual Detoxification Active</div>
+      <div class="cfbod">Both nitrate and sulfate pathways are active. Sulfide (HS⁻) and nitrite (NO₂⁻) are converging at the AND-gate node on the canvas. Watch the yellow particles flow toward the Detox Output node (3S + NH₄⁺). This cross-reaction yields elemental sulfur and ammonium, neutralizing both toxins simultaneously at −354.5 kJ/mol NO₂⁻ (van Zijderveld et al., 2010).</div>
+    </div>
+
+    <div>
+      <div class="wbox">
+        <div class="wtit">Clinical / Production Note</div>
+        <div class="wbod">${pw.warn}</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-head">Simulation Log</div>
+      <div id="q-log"></div>
+    </div>
+  `;
+  renderLog();
+}
+
+// ══════════════════════════════════════════════════
+// SLIDER
+// ══════════════════════════════════════════════════
+function updateSlider() {
+  document.getElementById('hval').textContent = `10^${h2lg.toFixed(1)} atm`;
+  document.getElementById('awval').textContent = aw === 1.0 ? "1.00 (Pure)" : aw.toFixed(2);
+
+  PW.forEach(pw => {
+    const nowActive = isActive(pw);
+    if (!nowActive && !pw._wasInhib) {
+      addLog(`[INHIBITION] ${pw.tab} — thermodynamically unfavourable`, 'err');
+      pw._wasInhib = true;
+    } else if (nowActive && pw._wasInhib) {
+      addLog(`[ACTIVATION] ${pw.tab} — favorable`);
+      pw._wasInhib = false;
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════
+// CANVAS LAYOUT
+// ══════════════════════════════════════════════════
+function layout() {
+  const cw = cvs.width  = cvs.parentElement.clientWidth;
+  const ch = cvs.height = cvs.parentElement.clientHeight;
+
+  const cx = cw * 0.22;
+  const cy = ch * 0.50;
+  H2P.x = cx; H2P.y = cy;
+
+  // FIX: source now has 3 canvas positions matching its 3 nodes
+  npos['source']   = [
+    {x: cx - 270, y: cy},
+    {x: cx - 155, y: cy},
+    {x: cx - 55,  y: cy}
+  ];
+  npos['water']    = [{x: cx, y: cy - 120}, {x: cx, y: cy - 195}, {x: cx, y: cy - 270}];
+  npos['methane']  = [{x: cx, y: cy + 120}, {x: cx, y: cy + 195}, {x: cx, y: cy + 270}];
+  npos['acetogen'] = [{x: cx - 90, y: cy + 95}, {x: cx - 165, y: cy + 175}, {x: cx - 240, y: cy + 255}];
+
+  // Nitrate and Sulfate: horizontal parallel circuit
+  let so4 = {x: cx + 130, y: cy - 65};
+  let aps = {x: cx + 255, y: cy - 65};
+  let hs  = {x: cx + 380, y: cy - 65};
+  let h2s = {x: cx + 380, y: cy - 145}; // Added H2S branching pointing UPWARDS from hs
+  npos['sulfate'] = [so4, aps, hs, h2s]; // Added h2s to the rendering array
+
+  let no3 = {x: cx + 130, y: cy + 65};
+  let no2 = {x: cx + 380, y: cy + 65}; // Aligned under HS for detox drop
+  let nh4 = {x: cx + 505, y: cy + 125};
+  npos['nitrate'] = [no3, no2, nh4];
+
+  // Detox AND-gate output node
+  SP_NODES = [{ x: cx + 505, y: cy, data: {lbl: 'Detox', type: 'out', sub: '3S + NH₄⁺'} }];
+
+  PW.forEach(pw => {
+    if (npos[pw.id]) npos[pw.id].forEach((n, i) => { n.data = pw.nodes[i]; });
+  });
+}
+
+// ══════════════════════════════════════════════════
+// PARTICLE SYSTEM (WITH QUANTUM UPDATES)
+// ══════════════════════════════════════════════════
+function spawnParticles() {
+  if (pts.length > 400) return;
+
+  const nitActive = isActive(PW.find(p => p.id === 'nitrate'));
+  const sulActive = isActive(PW.find(p => p.id === 'sulfate'));
+
+  PW.forEach(pw => {
+    if (!isActive(pw)) return;
+    const isSel    = pw.id === sel;
+    const strength = Math.min(1.5, Math.abs(dgH2(pw)) / 150);
+    const rate     = isSel ? strength * 0.25 : strength * 0.08;
+    const spd      = 0.005 + strength * 0.008 + (isSel ? 0.004 : 0);
+    const pR       = isSel ? 3 : 1.5;
+
+    if (Math.random() < rate) {
+      if (pw.id === 'nitrate') {
+        if (Math.random() > 0.4) {
+          pts.push({wps:[{x:H2P.x,y:H2P.y}, npos['nitrate'][0], npos['nitrate'][1]], seg:0, t:Math.random()*0.2, spd, col:pw.color, pid:pw.id, r:pR, txt:'H⁺'});
+        } else {
+          pts.push({wps:[{x:H2P.x,y:H2P.y}, npos['nitrate'][1], npos['nitrate'][2]], seg:0, t:Math.random()*0.2, spd, col:pw.color, pid:pw.id, r:pR, txt:'e⁻'});
+        }
+      } else {
+        const ns = npos[pw.id];
+        let waypoints;
+        if (pw.is_source) {
+          waypoints = [...ns.map(n => ({x:n.x, y:n.y})), {x:H2P.x, y:H2P.y}];
+        } else {
+          waypoints = [{x:H2P.x, y:H2P.y}, ...ns.map(n => ({x:n.x, y:n.y}))];
+        }
+        pts.push({wps:waypoints, seg:0, t:Math.random()*0.2, spd, col:pw.color, pid:pw.id, r:pR, txt:Math.random()>0.5?'e⁻':'H⁺'});
+      }
+    }
+  });
+
+  // Detox particles
+  if (nitActive && sulActive && Math.random() < 0.15) {
+    const hsNode  = npos['sulfate'][2]; // Index 2 is still 'hs'. Particles will fall down perfectly!
+    const no2Node = npos['nitrate'][1];
+    const dOut    = SP_NODES[0];
+    pts.push({wps:[{x:hsNode.x,y:hsNode.y},{x:dOut.x,y:dOut.y}], seg:0, t:Math.random()*0.2, spd:0.015, col:'#fbbf24', pid:'detox', r:2.5, txt:'S'});
+    pts.push({wps:[{x:no2Node.x,y:no2Node.y},{x:dOut.x,y:dOut.y}], seg:0, t:Math.random()*0.2, spd:0.015, col:'#fbbf24', pid:'detox', r:2.5, txt:'N'});
+  }
+}
+
+function updateParticles() {
+  pts = pts.filter(p => {
+    if (p.seg >= p.wps.length - 1) return false;
+    
+    p.t += p.spd;
+
+    // --- QUANTUM TUNNELING ---
+    // If quantum mode is on, particles have a small chance to "teleport" forward
+    // bypassing the normal kinetic movement space.
+    if (quantumMode && Math.random() < 0.03 && p.t < 0.8) {
+      p.t += 0.15; 
+    }
+
+    if (p.t >= 1) {
+      p.t -= 1;
+      p.seg++;
+      
+      // Node logic & Logging
+      if (p.pid === sel && p.seg > 0 && p.pid !== 'detox') {
+        const pw = PW.find(w => w.id === p.pid);
+        let nodeIdx = pw.is_source ? (pw.nodes.length - p.seg) : (p.seg - 1);
+        const node = pw.nodes[nodeIdx];
+        if (node && node.type === 'toxin' && Math.random() < 0.02) {
+          addLog(`Accumulation at ${node.lbl} intermediate`, 'err');
+        }
+      }
+      if (p.pid === 'detox' && p.seg >= p.wps.length - 1 && Math.random() < 0.01) {
+        addLog(`✦ Mutual Detoxification: HS⁻ + NO₂⁻ → 3S + NH₄⁺ (−354.5 kJ)`, 'dtx');
+      }
+
+      // --- REAL PHOTON EMISSION (BOND FORMED) ---
+      // When a particle reaches the final node, the bond snaps together.
+      // This releases the built-up tension as a real photon (energy release).
+      if (quantumMode && p.seg >= p.wps.length - 1) {
+        const finalDest = p.wps[p.wps.length - 1];
+        quantumRipples.push({
+          x: finalDest.x, y: finalDest.y, r: 5, maxR: 45, 
+          col: p.col, speed: 2.0, type: 'real' 
+        });
+      }
+    }
+    return p.seg < p.wps.length - 1;
+  });
+}
+
+// ══════════════════════════════════════════════════
+// DRAW
+// ══════════════════════════════════════════════════
+function drawGrid() {
+  const cw = cvs.width, ch = cvs.height, gs = 50;
+  ctx.strokeStyle = 'rgba(28,35,51,0.4)';
+  ctx.lineWidth = 1;
+  for (let x = gs; x < cw; x += gs) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,ch); ctx.stroke(); }
+  for (let y = gs; y < ch; y += gs) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(cw,y); ctx.stroke(); }
+}
+
+function drawH2Pool() {
+  const {x,y,r} = H2P;
+  const ft = (Date.now() % 3000) / 3000;
+  ctx.beginPath(); ctx.arc(x,y,r+10+ft*25,0,Math.PI*2);
+  ctx.fillStyle = `rgba(249,115,22,${(1-ft)*0.15})`; ctx.fill();
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.fillStyle = '#1a0d05'; ctx.fill();
+  ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.shadowBlur = 20; ctx.shadowColor = '#f97316'; ctx.stroke(); ctx.shadowBlur = 0;
+  ctx.fillStyle = '#f97316'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 18px "JetBrains Mono"'; ctx.fillText('H₂',x,y-6);
+  ctx.font = '10px "JetBrains Mono"'; ctx.fillStyle = 'rgba(249,115,22,0.8)';
+  ctx.fillText('POOL',x,y+10);
+}
+
+function drawEdgeLabel(x1, y1, x2, y2, label, color) {
+  const mx = (x1+x2)*0.5;
+  const my = (y1+y2)*0.5;
+  ctx.save();
+  ctx.font = 'bold 9px "JetBrains Mono"';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  const tw = ctx.measureText(label).width + 6;
+  ctx.fillStyle = 'rgba(5,8,15,0.82)';
+  ctx.fillRect(mx - tw/2, my - 14, tw, 13);
+  ctx.fillStyle = color;
+  ctx.fillText(label, mx, my-2);
+  ctx.restore();
+}
+
+function drawArrow(x1, y1, x2, y2, color, alpha) {
+  const dx = x2-x1, dy = y2-y1;
+  const angle = Math.atan2(dy,dx);
+  const ax = x2 - 22*Math.cos(angle), ay = y2 - 22*Math.sin(angle);
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax - 9*Math.cos(angle-0.4), ay - 9*Math.sin(angle-0.4));
+  ctx.lineTo(ax - 9*Math.cos(angle+0.4), ay - 9*Math.sin(angle+0.4));
+  ctx.fillStyle = `rgba(${hexToRgb(color)},${alpha})`; ctx.fill();
+}
+
+function drawLines() {
+  PW.forEach(pw => {
+    const ns    = npos[pw.id];
+    if (!ns) return;
+    const act   = isActive(pw);
+    const isSel = pw.id === sel;
+    const alpha = isSel ? 0.9 : (act ? 0.3 : 0.08);
+
+    ctx.strokeStyle = `rgba(${hexToRgb(pw.color)},${alpha})`;
+    ctx.lineWidth = isSel ? 2.5 : 1.5;
+    ctx.setLineDash([]);
+
+    if (pw.id === 'nitrate') {
+      ctx.beginPath(); ctx.moveTo(H2P.x, H2P.y); ctx.lineTo(ns[0].x, ns[0].y); ctx.stroke();
+      drawArrow(H2P.x, H2P.y, ns[0].x, ns[0].y, pw.color, alpha);
+      ctx.beginPath(); ctx.moveTo(ns[0].x, ns[0].y); ctx.lineTo(ns[1].x, ns[1].y); ctx.stroke();
+      drawArrow(ns[0].x, ns[0].y, ns[1].x, ns[1].y, pw.color, alpha);
+      
+      ctx.beginPath(); ctx.moveTo(H2P.x, H2P.y);
+      ctx.lineTo((H2P.x + ns[1].x)*0.5, H2P.y + 30);
+      ctx.lineTo(ns[1].x, ns[1].y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ns[1].x, ns[1].y); ctx.lineTo(ns[2].x, ns[2].y); ctx.stroke();
+      drawArrow(ns[1].x, ns[1].y, ns[2].x, ns[2].y, pw.color, alpha);
+      
+      if (act) {
+        const lCol = pw.color;
+        drawEdgeLabel(H2P.x, H2P.y, ns[0].x, ns[0].y, '−163 kJ/H₂', lCol);
+        drawEdgeLabel(ns[1].x, ns[1].y, ns[2].x, ns[2].y, '−145 kJ/H₂', lCol);
+      }
+    } else if (pw.is_source) {
+      for (let i = 0; i < ns.length - 1; i++) {
+        ctx.beginPath(); ctx.moveTo(ns[i].x, ns[i].y); ctx.lineTo(ns[i+1].x, ns[i+1].y); ctx.stroke();
+        drawArrow(ns[i].x, ns[i].y, ns[i+1].x, ns[i+1].y, pw.color, alpha);
+      }
+      ctx.beginPath(); ctx.moveTo(ns[ns.length-1].x, ns[ns.length-1].y); ctx.lineTo(H2P.x, H2P.y); ctx.stroke();
+      drawArrow(ns[ns.length-1].x, ns[ns.length-1].y, H2P.x, H2P.y, pw.color, alpha);
+    } else {
+      ctx.beginPath(); ctx.moveTo(H2P.x, H2P.y); ctx.lineTo(ns[0].x, ns[0].y); ctx.stroke();
+      drawArrow(H2P.x, H2P.y, ns[0].x, ns[0].y, pw.color, alpha);
+      for (let i = 0; i < ns.length - 1; i++) {
+        ctx.beginPath(); ctx.moveTo(ns[i].x, ns[i].y); ctx.lineTo(ns[i+1].x, ns[i+1].y); ctx.stroke();
+        drawArrow(ns[i].x, ns[i].y, ns[i+1].x, ns[i+1].y, pw.color, alpha);
+
+      }
+    }
+  });
+
+  // Mutual Detoxification lines
+  const nit = PW.find(p => p.id === 'nitrate');
+  const sul = PW.find(p => p.id === 'sulfate');
+  if (isActive(nit) && isActive(sul)) {
+    const hs   = npos['sulfate'][2];
+    const no2  = npos['nitrate'][1];
+    const dOut = SP_NODES[0];
+    const p    = (Math.sin(Date.now() / 220) + 1) / 2;
+
+    ctx.setLineDash([5, 4]); ctx.lineWidth = 2;
+    ctx.strokeStyle = `rgba(251,191,36,${0.35 + p*0.6})`;
+
+    ctx.beginPath(); ctx.moveTo(hs.x, hs.y); ctx.lineTo(dOut.x, dOut.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(no2.x, no2.y); ctx.lineTo(dOut.x, dOut.y); ctx.stroke();
+    ctx.setLineDash([]);
+    drawArrow(hs.x, hs.y, dOut.x, dOut.y, '#fbbf24', 0.35 + p*0.6);
+    drawArrow(no2.x, no2.y, dOut.x, dOut.y, '#fbbf24', 0.35 + p*0.6);
+
+    const labelX = dOut.x, labelY = dOut.y - 36;
+    ctx.fillStyle = 'rgba(5,8,15,0.85)'; ctx.fillRect(labelX - 90, labelY - 12, 180, 14);
+    ctx.font = 'bold 9px "JetBrains Mono"'; ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'center'; ctx.fillText('Mutual Detox  −354.5 kJ/mol NO₂⁻', labelX, labelY);
+
+    const nh4Out = { x: dOut.x + 110, y: dOut.y - 55 };
+    const sOut   = { x: dOut.x + 110, y: dOut.y + 55 };
+    const outAlpha = 0.55 + p * 0.45;
+
+    ctx.setLineDash([4, 3]); ctx.lineWidth = 1.8; ctx.strokeStyle = `rgba(52,211,153,${outAlpha})`; 
+    ctx.beginPath(); ctx.moveTo(dOut.x, dOut.y); ctx.lineTo(nh4Out.x, nh4Out.y); ctx.stroke();
+    ctx.setLineDash([]); drawArrow(dOut.x, dOut.y, nh4Out.x, nh4Out.y, '#34d399', outAlpha);
+
+    const nr = 16;
+    ctx.beginPath(); ctx.arc(nh4Out.x, nh4Out.y, nr, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(10,25,20,0.92)'; ctx.fill();
+    ctx.strokeStyle = `rgba(52,211,153,${outAlpha})`; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = `rgba(52,211,153,${outAlpha})`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 9px "JetBrains Mono"'; ctx.fillText('NH₄⁺', nh4Out.x, nh4Out.y - 4);
+    ctx.font = '8px "JetBrains Mono"'; ctx.fillText('Ammonium', nh4Out.x, nh4Out.y + 7);
+
+    ctx.setLineDash([4, 3]); ctx.lineWidth = 1.8; ctx.strokeStyle = `rgba(251,191,36,${outAlpha})`; 
+    ctx.beginPath(); ctx.moveTo(dOut.x, dOut.y); ctx.lineTo(sOut.x, sOut.y); ctx.stroke();
+    ctx.setLineDash([]); drawArrow(dOut.x, dOut.y, sOut.x, sOut.y, '#fbbf24', outAlpha);
+
+    ctx.beginPath(); ctx.arc(sOut.x, sOut.y, nr, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(20,18,5,0.92)'; ctx.fill();
+    ctx.strokeStyle = `rgba(251,191,36,${outAlpha})`; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = `rgba(251,191,36,${outAlpha})`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 10px "JetBrains Mono"'; ctx.fillText('S', sOut.x, sOut.y - 4);
+    ctx.font = '8px "JetBrains Mono"'; ctx.fillText('Sulfur', sOut.x, sOut.y + 7);
+  }
+}
+
+function drawNodes() {
+  const allNodes = [];
+  PW.forEach(pw => {
+    const act   = isActive(pw);
+    const isSel = pw.id === sel;
+    const ns    = npos[pw.id];
+    if (!ns) return;
+    ns.forEach(n => allNodes.push({n, pw, act, isSel}));
+  });
+
+  const bothActive = isActive(PW.find(p => p.id === 'nitrate')) && isActive(PW.find(p => p.id === 'sulfate'));
+  SP_NODES.forEach(n => allNodes.push({n, pw: {color:'#fbbf24'}, act: bothActive, isSel: false, isDetox: true}));
+
+  const nr = 18;
+  allNodes.forEach(({n, pw, act, isSel, isDetox}) => {
+    if (!n || !n.data) return;
+    const isToxin = n.data.type === 'toxin';
+    const pulse   = (Math.sin(Date.now() / 200) + 1) / 2;
+
+    if (isToxin && act) {
+      ctx.beginPath(); ctx.arc(n.x, n.y, nr + 6 + pulse*8, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(244,63,94,${0.1 + pulse*0.1})`; ctx.fill();
+    }
+    if (isDetox) {
+      const glowAlpha = bothActive ? (0.1 + pulse*0.2) : 0.04;
+      ctx.beginPath(); ctx.arc(n.x, n.y, nr + 6 + (bothActive ? pulse*8 : 0), 0, Math.PI*2);
+      ctx.fillStyle = `rgba(251,191,36,${glowAlpha})`; ctx.fill();
+    }
+    if (isSel && act) {
+      ctx.beginPath(); ctx.arc(n.x, n.y, nr+12, 0, Math.PI*2);
+      const g = ctx.createRadialGradient(n.x,n.y,nr,n.x,n.y,nr+12);
+      g.addColorStop(0, `rgba(${hexToRgb(pw.color)},0.4)`);
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g; ctx.fill();
+    }
+
+    ctx.beginPath(); ctx.arc(n.x, n.y, nr, 0, Math.PI*2);
+    if (isDetox) {
+      ctx.fillStyle = bothActive ? 'rgba(40,30,10,0.9)' : 'rgba(15,18,25,0.9)';
+    } else {
+      ctx.fillStyle = act ? (isToxin ? 'rgba(40,10,15,0.9)' : 'rgba(15,20,30,0.9)') : '#05080f';
+    }
+    ctx.fill();
+    const strokeColor = isDetox ? (bothActive ? '#fbbf24' : '#2d2a18') : (act ? (isToxin ? '#f43f5e' : pw.color) : 'rgba(40,45,60,0.8)');
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = isSel ? 2 : 1; ctx.stroke();
+
+    ctx.fillStyle = act ? (isToxin ? '#fca5a5' : (isDetox ? '#fde68a' : '#fff')) : (isDetox ? '#4b3a10' : '#4b5563');
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `bold ${n.data.lbl.length > 5 ? 8 : 10}px "JetBrains Mono"`;
+    ctx.fillText(n.data.lbl, n.x, n.y);
+
+    ctx.fillStyle = act ? (isToxin ? '#f43f5e' : (isDetox ? '#fbbf24' : pw.color)) : 'rgba(75,85,99,0.5)';
+    ctx.font = '8px "JetBrains Mono"';
+    ctx.fillText(n.data.sub || '', n.x, n.y + nr + 10);
+  });
+}
+
+function drawParts() {
+  // --- DRAW EM FIELD RIPPLES (Quantum Mode) ---
+  quantumRipples = quantumRipples.filter(r => {
+    r.r += r.speed;
+    const alpha = 1 - (r.r / r.maxR);
+    if (alpha <= 0) return false;
+    
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${hexToRgb(r.col)}, ${alpha})`;
+    ctx.lineWidth = r.type === 'real' ? 2 : 0.8;
+    ctx.stroke();
+    return r.r < r.maxR;
+  });
+
+  // --- DRAW PARTICLES ---
+  pts.forEach(p => {
+    const fm = p.wps[p.seg], to = p.wps[p.seg+1];
+    const x  = fm.x + (to.x - fm.x) * p.t;
+    const y  = fm.y + (to.y - fm.y) * p.t;
+    const isSel = p.pid === sel || p.pid === 'detox';
+
+    // --- VIRTUAL PHOTONS (RADAR PINGS) ---
+    // The particle constantly pings the EM field to plot its interception course
+    if (quantumMode && Math.random() < 0.06) {
+      quantumRipples.push({
+        x: x, y: y, r: p.r, maxR: 20, 
+        col: '#ffffff', speed: 0.8, type: 'virtual'
+      });
+    }
+
+    const brightness = 0.4 + p.t * 0.6;
+    ctx.beginPath(); 
+    
+    // In quantum mode, particles are fuzzy wave packets, not solid balls
+    if (quantumMode) {
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, p.r * 2.5);
+      grad.addColorStop(0, `rgba(${hexToRgb(p.col)}, ${brightness})`);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.arc(x, y, p.r * 2.5, 0, Math.PI * 2);
+    } else {
+      ctx.fillStyle = p.col;
+      ctx.globalAlpha = brightness;
+      ctx.arc(x, y, p.r, 0, Math.PI * 2);
+    }
+    
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+
+    if (isSel) {
+      ctx.shadowBlur = quantumMode ? 15 : 10; 
+      ctx.shadowColor = p.col;
+      ctx.beginPath(); 
+      ctx.arc(x, y, quantumMode ? p.r*1.5 : p.r, 0, Math.PI * 2); 
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      
+      // Hide trailing movement lines if in quantum mode for a cleaner "wave" look
+      if (p.t > 0.05 && !quantumMode) { 
+        ctx.beginPath();
+        ctx.moveTo(fm.x+(to.x-fm.x)*(p.t-0.05), fm.y+(to.y-fm.y)*(p.t-0.05));
+        ctx.lineTo(x,y);
+        ctx.strokeStyle = `rgba(${hexToRgb(p.col)},0.35)`; ctx.lineWidth = p.r*2; ctx.stroke();
+      }
+      if (p.t > 0.1 && p.t < 0.9 && Math.random() > 0.8 && !quantumMode) {
+        ctx.fillStyle = '#fff'; ctx.font = '7px monospace';
+        ctx.fillText(p.txt, x+5, y-5);
+      }
+    }
+  });
+}
+
+function hexToRgb(hex) {
+  if (!hex || hex.startsWith('var') || hex.startsWith('rgb')) return '251,191,36';
+  if (hex[0] !== '#') return '200,200,200';
+  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)].join(',');
+}
+function varColor(v) {
+  return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+}
+
+// ══════════════════════════════════════════════════
+// FONT SIZE CONTROL
+// ══════════════════════════════════════════════════
+const FS_MIN = 10, FS_MAX = 20, FS_STEP = 1;
+let currentFs = 13;
+
+function setFs(size) {
+  currentFs = Math.min(FS_MAX, Math.max(FS_MIN, size));
+  document.documentElement.style.setProperty('--fs', currentFs + 'px');
+  document.getElementById('fslabel').textContent = currentFs + 'px';
+  updateHdrHeight();
+  buildPanel();
+}
+
+function updateHdrHeight() {
+  const hdrH = document.getElementById('hdr').offsetHeight;
+  document.documentElement.style.setProperty('--hdr-h', hdrH + 'px');
+  document.getElementById('app').style.height = `calc(100vh - ${hdrH}px)`;
+}
+
+// ══════════════════════════════════════════════════
+// LOOP & INIT
+// ══════════════════════════════════════════════════
+function loop() {
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  drawGrid();
+  drawLines();
+  drawH2Pool();
+  drawNodes();
+  spawnParticles();
+  updateParticles();
+  drawParts();
+  requestAnimationFrame(loop);
+}
+
+function init() {
+  layout();
+  buildTabs();
+  buildPanel();
+  updateSlider();
+
+  addLog("Simulation initialised · T = 312 K (39 °C).");
+  addLog("Thermodynamics: Thauer et al. (1977). Co-feed: van Zijderveld et al. (2010).");
+  addLog("Select a tab or enable Co-Feed Mode to explore the detoxification circuit.");
+
+  document.getElementById('h2sl').addEventListener('input', e => {
+    h2lg = parseFloat(e.target.value);
+    updateSlider(); buildPanel();
+  });
+  document.getElementById('awsl').addEventListener('input', e => {
+    aw = parseFloat(e.target.value);
+    updateSlider(); buildPanel();
+  });
+
+  // Co-feed toggle
+  const btn = document.getElementById('cofeedBtn');
+  btn.addEventListener('click', () => {
+    cofeedMode = !cofeedMode;
+    btn.classList.toggle('active', cofeedMode);
+    if (cofeedMode) {
+      addLog("▶ Co-Feed Mode ON — nitrate + sulfate forced active. Watch detox circuit.", 'dtx');
+    } else {
+      addLog("◼ Co-Feed Mode OFF — thermodynamic rules restored.");
+    }
+    PW.forEach(pw => { pw._wasInhib = undefined; });
+    updateSlider(); buildPanel();
+  });
+
+  // NEW: Quantum toggle
+  const qBtn = document.getElementById('quantumBtn');
+  const qDot = qBtn.querySelector('.dot');
+  qBtn.addEventListener('click', () => {
+    quantumMode = !quantumMode;
+    if (quantumMode) {
+      qBtn.classList.add('active');
+      qDot.style.background = '#a855f7';
+      qBtn.style.borderColor = '#a855f7';
+      qBtn.style.color = '#a855f7';
+      qBtn.style.backgroundColor = 'rgba(168,85,247,0.08)';
+      qDot.style.boxShadow = '0 0 6px #a855f7';
+      addLog("⚛ Quantum Mode ON — Particles emit virtual photons & tunnel through energy barriers.", 'dtx');
+    } else {
+      qBtn.classList.remove('active');
+      qDot.style.background = '';
+      qBtn.style.borderColor = '';
+      qBtn.style.color = '';
+      qBtn.style.backgroundColor = '';
+      qDot.style.boxShadow = '';
+      addLog("◼ Quantum Mode OFF — Returned to classical kinetic modeling.");
+    }
+  });
+
+  window.addEventListener('resize', () => { updateHdrHeight(); layout(); });
+  updateHdrHeight();
+
+  // Font size buttons
+  document.getElementById('fsup').addEventListener('click', () => setFs(currentFs + FS_STEP));
+  document.getElementById('fsdn').addEventListener('click', () => setFs(currentFs - FS_STEP));
+
+  requestAnimationFrame(loop);
+}
+
+init();
+</script>
+</body>
+</html>

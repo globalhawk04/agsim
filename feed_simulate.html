@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rumen Metabolic Simulator — Feedlot Edition</title>
+    <style>
+        /* =============================================
+           ROOT & RESET
+           ============================================= */
+        :root {
+            --bg-deep:    #0a0f1e;
+            --bg-panel:   #111827;
+            --bg-card:    #1e293b;
+            --border:     #1e3a5f;
+            --text:       #e2e8f0;
+            --text-dim:   #64748b;
+            --text-head:  #94a3b8;
+            --accent-1:   #3b82f6;
+            --accent-2:   #10b981;
+            --amber:      #f59e0b;
+            --rose:       #f43f5e;
+            --violet:     #a78bfa;
+            --cyan:       #06b6d4;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg-deep);
+            color: var(--text);
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 13px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px 20px 24px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 1.1rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-head);
+            margin-bottom: 14px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            width: 100%;
+            max-width: 1100px;
+            text-align: center;
+        }
+
+        /* =============================================
+           LAYOUT WRAPPER
+           ============================================= */
+        .sim-layout {
+            display: grid;
+            grid-template-columns: 220px 1fr 220px;
+            gap: 14px;
+            width: 100%;
+            max-width: 1100px;
+        }
+
+        /* =============================================
+           PANELS
+           ============================================= */
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .panel-title {
+            font-size: 0.7rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--text-head);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+        }
+
+        /* =============================================
+           SCENARIO SELECTOR (Left Panel)
+           ============================================= */
+        .scenario-btn {
+            display: block;
+            width: 100%;
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid transparent;
+            border-radius: 5px;
+            padding: 8px 10px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.72rem;
+            text-align: left;
+            margin-bottom: 5px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            line-height: 1.4;
+        }
+
+        .scenario-btn:hover {
+            border-color: var(--accent-1);
+        }
+
+        .scenario-btn .sc-label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .scenario-desc-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 8px;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            line-height: 1.5;
+            margin-top: 8px;
+            min-height: 60px;
+        }
+
+        #scenario-label {
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: var(--amber);
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        /* =============================================
+           CENTER COLUMN
+           ============================================= */
+        .center-col {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Feed + view controls */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .controls-label {
+            width: 100%;
+            font-size: 0.65rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 2px;
+        }
+
+        button {
+            background: var(--accent-1);
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: inherit;
+            font-size: 0.72rem;
+            transition: opacity 0.15s;
+        }
+
+        button:hover { opacity: 0.85; }
+
+        canvas {
+            background: #1a2236;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+            transition: opacity 0.3s ease-in-out;
+            display: block;
+        }
+
+        .faded { opacity: 0; }
+
+        .timeline-controls {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tl-label {
+            color: var(--text-dim);
+            font-size: 0.68rem;
+            letter-spacing: 0.1em;
+            margin-right: 6px;
+        }
+
+        .sep { color: var(--border); margin: 0 4px; }
+
+        /* =============================================
+           RIGHT PANEL - OUTCOME DASHBOARD
+           ============================================= */
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+
+        .stat-label { color: var(--text-dim); font-size: 0.68rem; }
+        .stat-val   { font-weight: bold; font-size: 0.85rem; }
+
+        .vfa-bar-container {
+            margin: 6px 0 2px;
+        }
+
+        .vfa-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 4px;
+        }
+
+        .vfa-bar-label {
+            width: 60px;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            flex-shrink: 0;
+        }
+
+        .vfa-bar-track {
+            flex: 1;
+            height: 10px;
+            background: var(--bg-card);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .vfa-bar-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 3px;
+            transition: width 0.4s ease;
+        }
+
+        .vfa-bar-pct {
+            width: 30px;
+            text-align: right;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+        }
+
+        /* =============================================
+           BOTTOM AUDIT DASHBOARDS (unchanged from orig)
+           ============================================= */
+        .dashboard-row {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 1100px;
+            margin-top: 10px;
+        }
+
+        .dashboard {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            flex: 1;
+            font-size: 0.8rem;
+        }
+
+        .dashboard h3 {
+            margin-top: 0;
+            color: var(--text-head);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 5px;
+            margin-bottom: 8px;
+        }
+
+        .stat-absorb  { color: #10b981; }
+        .stat-eructate{ color: #ef4444; }
+        .stat-passed  { color: #8b5cf6; }
+        .stat-atp     { color: #fbbf24; font-weight: bold; font-size: 1rem; }
+        .stat-heat    { color: #f97316; }
+
+        /* Section divider */
+        .section-title {
+            font-size: 0.65rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin: 8px 0 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Rumen Mass Balance &amp; Systemic Energetics — Feedlot Scenario Engine</h1>
+
+<!-- ====================================================
+     MAIN 3-COLUMN LAYOUT
+     ==================================================== -->
+<div class="sim-layout">
+
+    <!-- LEFT: SCENARIO SELECTOR -->
+    <div class="panel">
+        <div class="panel-title">Scenario Selector</div>
+
+        <button class="scenario-btn" data-preset="BASELINE_FORAGE"
+            onclick="loadScenario('BASELINE_FORAGE')" style="border-color:#22c55e;">
+            <span class="sc-label" style="color:#22c55e;">🌿 Forage Only</span>
+            Cellulose · Fibrobacter · Ruminococcus
+        </button>
+
+        <button class="scenario-btn" data-preset="FEEDLOT_CORN"
+            onclick="loadScenario('FEEDLOT_CORN')">
+            <span class="sc-label" style="color:#f59e0b;">🌽 Dry-Rolled Corn</span>
+            Starch · Selenomonas dominant
+        </button>
+
+        <button class="scenario-btn" data-preset="CORN_ARGININE"
+            onclick="loadScenario('CORN_ARGININE')">
+            <span class="sc-label" style="color:#8b5cf6;">🧬 Corn + Bypass Protein</span>
+            + Arginine · Urea cycle load
+        </button>
+
+        <button class="scenario-btn" data-preset="CORN_NIACIN"
+            onclick="loadScenario('CORN_NIACIN')">
+            <span class="sc-label" style="color:#06b6d4;">💊 Corn + Niacin (B3)</span>
+            + TCA boost · BHBA suppression
+        </button>
+
+        <button class="scenario-btn" data-preset="CORN_BETA"
+            onclick="loadScenario('CORN_BETA')">
+            <span class="sc-label" style="color:#f43f5e;">⚡ Corn + Ractopamine</span>
+            + β₂ receptor · cAMP cascade
+        </button>
+
+        <button class="scenario-btn" data-preset="CORN_NIACIN_BETA"
+            onclick="loadScenario('CORN_NIACIN_BETA')">
+            <span class="sc-label" style="color:#f97316;">🔥 Corn + Niacin + Beta</span>
+            Synergistic NAD⁺/PKA protocol
+        </button>
+
+        <button class="scenario-btn" data-preset="FULL_STACK"
+            onclick="loadScenario('FULL_STACK')">
+            <span class="sc-label" style="color:#a855f7;">🚀 Full Stack</span>
+            All agents · Maximum intervention
+        </button>
+
+        <div class="scenario-desc-box">
+            <span id="scenario-label">Feedlot: Dry-Rolled Corn</span>
+            <div id="scenario-desc" style="margin-top:4px;">
+                High-starch substrate. Selenomonas dominant. High propionate, lower methane.
+            </div>
+        </div>
+    </div>
+
+    <!-- CENTER: CANVAS + CONTROLS -->
+    <div class="center-col">
+
+        <!-- Feed + zoom controls -->
+        <div class="controls">
+            <span class="controls-label">Feed</span>
+            <button id="btn-feed-primary" onclick="spawnScenarioFeed()"
+                style="background:#f59e0b; color:black;">Feed Corn Starch</button>
+            <button onclick="spawnAdditives()"
+                style="background:#a855f7;">Feed Additives</button>
+            <button onclick="spawnMolecule('Arginine')"
+                style="background:#8b5cf6;">Feed Arginine</button>
+
+            <span class="controls-label" style="margin-left:8px;">Zoom</span>
+            <button onclick="toggleView('RUMEN_WALL')"  style="background:#10b981;">Rumen Wall</button>
+            <button onclick="toggleView('INTESTINE')"   style="background:#f59e0b; color:black;">Intestine</button>
+            <button onclick="toggleView('LIVER')"       style="background:#dc2626;">Liver</button>
+            <button onclick="toggleView('MITOCHONDRIA')"style="background:#fbbf24; color:black;">Mitochondria</button>
+            <button onclick="toggleView('MOLECULAR')"   style="background:#6366f1; border:1px solid white;">🧬 Atomic Matrix</button>
+        </div>
+
+        <canvas id="simulationCanvas" width="640" height="440"></canvas>
+
+        <!-- Timeline controls -->
+        <div class="timeline-controls">
+            <span class="tl-label">TIME:</span>
+            <button id="btn-play" onclick="togglePlay()" style="background:#10b981;">⏸ Pause</button>
+            <button onclick="stepFrame()" style="background:#475569;">⏭ Step</button>
+            <span class="sep">|</span>
+            <button onclick="setSpeed(1)" style="background:#475569;">1×</button>
+            <button onclick="setSpeed(2)" style="background:#475569;">2×</button>
+            <button onclick="setSpeed(4)" style="background:#475569;">4×</button>
+        </div>
+    </div>
+
+    <!-- RIGHT: OUTCOME DASHBOARD -->
+    <div class="panel">
+        <div class="panel-title">Scenario Outcomes</div>
+
+        <div class="section-title">VFA Profile (absorbed)</div>
+        <div class="vfa-bar-container">
+            <div class="vfa-bar-row">
+                <div class="vfa-bar-label">Propionate</div>
+                <div class="vfa-bar-track">
+                    <div id="bar-prop" class="vfa-bar-fill" style="background:#eab308;"></div>
+                </div>
+                <div class="vfa-bar-pct"><span id="sc-prop-pct">0%</span></div>
+            </div>
+            <div class="vfa-bar-row">
+                <div class="vfa-bar-label">Acetate</div>
+                <div class="vfa-bar-track">
+                    <div id="bar-acet" class="vfa-bar-fill" style="background:#10b981;"></div>
+                </div>
+                <div class="vfa-bar-pct"><span id="sc-acet-pct">0%</span></div>
+            </div>
+            <div class="vfa-bar-row">
+                <div class="vfa-bar-label">Butyrate</div>
+                <div class="vfa-bar-track">
+                    <div id="bar-but" class="vfa-bar-fill" style="background:#f97316;"></div>
+                </div>
+                <div class="vfa-bar-pct"><span id="sc-but-pct">0%</span></div>
+            </div>
+        </div>
+
+        <div class="section-title">Energy Efficiency</div>
+        <div class="stat-row">
+            <span class="stat-label">Methane Ym%</span>
+            <span class="stat-val" id="sc-methane-ym" style="color:#ef4444;">0%</span>
+        </div>
+
+        <div class="section-title" style="margin-top:10px;">Beta-Agonist Cascade</div>
+        <div class="stat-row">
+            <span class="stat-label">PKA Status</span>
+            <span class="stat-val" id="sc-pka-status" style="color:#64748b;">⚫ Inactive</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">cAMP absorbed</span>
+            <span class="stat-val" id="sc-camp" style="color:#a78bfa;">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Myofibril synth</span>
+            <span class="stat-val" id="sc-myofibril" style="color:#fb923c;">0</span>
+        </div>
+
+        <div class="section-title" style="margin-top:10px;">Particle Tracking</div>
+        <div class="stat-row">
+            <span class="stat-label">Absorbed</span>
+            <span class="stat-val stat-absorb" id="ui-absorbed">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Passed (RUP)</span>
+            <span class="stat-val stat-passed" id="ui-passed">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Eructated</span>
+            <span class="stat-val stat-eructate" id="ui-eructated">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Net ATP</span>
+            <span class="stat-val stat-atp" id="ui-atp">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Heat (kcal)</span>
+            <span class="stat-val stat-heat" id="ui-heat">0</span>
+        </div>
+    </div>
+</div>
+
+<!-- ====================================================
+     BOTTOM: ACADEMIC AUDIT DASHBOARDS (preserved)
+     ==================================================== -->
+<div class="dashboard-row">
+    <div class="dashboard">
+        <h3>7.2 Energetics (Hess's Law)</h3>
+        <div style="color:#3b82f6;">Gross Energy In: <span id="audit-ge">0</span> kcal</div>
+        <div style="color:#10b981;">VFA Energy Out: <span id="audit-me">0</span> kcal</div>
+    </div>
+    <div class="dashboard" style="border-color:#f59e0b;">
+        <h3 style="color:#f59e0b;">7.1 Mass Balance Audit</h3>
+        <div>Carbon Atoms In: <span id="audit-c-in" style="font-weight:bold;">0</span></div>
+        <div>Carbon (Out+Pool): <span id="audit-c-out" style="font-weight:bold;">0</span></div>
+        <div id="audit-c-status" style="margin-top:5px;font-weight:bold;">✅ BALANCED</div>
+    </div>
+    <div class="dashboard" style="border-color:#6366f1;">
+        <h3 style="color:#818cf8;">11.3 Matrix Thermodynamics (ΔH)</h3>
+        <div style="color:#ef4444;">Bond Energy Broken: +<span id="q-broken">0</span> kcal</div>
+        <div style="color:#22c55e;">Bond Energy Formed: -<span id="q-formed">0</span> kcal</div>
+        <div style="color:#fbbf24;font-weight:bold;">Net Enthalpy: <span id="q-net">0</span> kcal</div>
+    </div>
+    <div class="dashboard">
+        <h3>Niacin / TCA Modifier</h3>
+        <div style="color:#67e8f9;">B3 cycles absorbed: <span id="sc-niacin" style="font-weight:bold;">—</span></div>
+        <div style="color:#06b6d4;">TCA rate: <span id="sc-tca-rate" style="font-weight:bold;">1.0×</span></div>
+        <div style="color:#a78bfa; margin-top:4px; font-size:0.7rem;" id="sc-mods-active">No modifiers active</div>
+    </div>
+</div>
+
+<!-- ====================================================
+     SCRIPTS — Load Order Matters
+     ==================================================== -->
+<script src="js/core/matrix_engine.js"></script>
+<script src="js/core/molecules.js"></script>
+<script src="js/core/scenario_engine.js"></script>
+<script src="js/core/auditor.js"></script>
+<script src="js/engine/particle.js"></script>
+<script src="js/engine/collision.js"></script>
+<script src="js/views/view_2_membrane.js"></script>
+<script src="js/views/view_3_liver.js"></script>
+<script src="js/views/view_4_mito.js"></script>
+<script src="js/views/view_5_molecular.js"></script>
+<script src="js/app.js"></script>
+
+<!-- Niacin modifier display update (inline, lightweight) -->
+<script>
+    // Poll and update Niacin/modifier status display every 500ms
+    setInterval(() => {
+        if (!window.ScenarioEngine) return;
+        const mods = ScenarioEngine.getActiveModifiers();
+        const tcaEl = document.getElementById('sc-tca-rate');
+        if (tcaEl) tcaEl.innerText = mods.tca_rate_multiplier.toFixed(2) + '×';
+
+        const niacEl = document.getElementById('sc-niacin');
+        if (niacEl) niacEl.innerText = ScenarioEngine.ledger.niacin_cycles;
+
+        const modsEl = document.getElementById('sc-mods-active');
+        if (modsEl) {
+            const active = [...ScenarioEngine.activeAgents].join(' · ');
+            modsEl.innerText = active ? `Active: ${active}` : 'No modifiers active';
+        }
+    }, 500);
+</script>
+
+</body>
+</html>
