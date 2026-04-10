@@ -953,17 +953,21 @@ function drawNodes() {
   allNodes.forEach(({n, pw, act, isSel, isDetox}) => {
     if (!n || !n.data) return;
     const isToxin = n.data.type === 'toxin';
-    const pulse   = (Math.sin(Date.now() / 200) + 1) / 2;
 
+    // 1. Static red halo for active toxins (removed the pulse math)
     if (isToxin && act) {
-      ctx.beginPath(); ctx.arc(n.x, n.y, nr + 6 + pulse*8, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(244,63,94,${0.1 + pulse*0.1})`; ctx.fill();
+      ctx.beginPath(); ctx.arc(n.x, n.y, nr + 6, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(244,63,94,0.15)`; ctx.fill();
     }
+    
+    // 2. Static yellow halo for the detox node (removed the pulse math)
     if (isDetox) {
-      const glowAlpha = bothActive ? (0.1 + pulse*0.2) : 0.04;
-      ctx.beginPath(); ctx.arc(n.x, n.y, nr + 6 + (bothActive ? pulse*8 : 0), 0, Math.PI*2);
+      const glowAlpha = bothActive ? 0.15 : 0.04;
+      ctx.beginPath(); ctx.arc(n.x, n.y, nr + 6, 0, Math.PI*2);
       ctx.fillStyle = `rgba(251,191,36,${glowAlpha})`; ctx.fill();
     }
+    
+    // 3. Selection halo (stays the same)
     if (isSel && act) {
       ctx.beginPath(); ctx.arc(n.x, n.y, nr+12, 0, Math.PI*2);
       const g = ctx.createRadialGradient(n.x,n.y,nr,n.x,n.y,nr+12);
@@ -972,6 +976,7 @@ function drawNodes() {
       ctx.fillStyle = g; ctx.fill();
     }
 
+    // Draw the main node circle
     ctx.beginPath(); ctx.arc(n.x, n.y, nr, 0, Math.PI*2);
     if (isDetox) {
       ctx.fillStyle = bothActive ? 'rgba(40,30,10,0.9)' : 'rgba(15,18,25,0.9)';
@@ -979,21 +984,23 @@ function drawNodes() {
       ctx.fillStyle = act ? (isToxin ? 'rgba(40,10,15,0.9)' : 'rgba(15,20,30,0.9)') : '#05080f';
     }
     ctx.fill();
+    
     const strokeColor = isDetox ? (bothActive ? '#fbbf24' : '#2d2a18') : (act ? (isToxin ? '#f43f5e' : pw.color) : 'rgba(40,45,60,0.8)');
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = isSel ? 2 : 1; ctx.stroke();
 
+    // Draw text inside the node
     ctx.fillStyle = act ? (isToxin ? '#fca5a5' : (isDetox ? '#fde68a' : '#fff')) : (isDetox ? '#4b3a10' : '#4b5563');
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${n.data.lbl.length > 5 ? 8 : 10}px "JetBrains Mono"`;
     ctx.fillText(n.data.lbl, n.x, n.y);
 
+    // Draw subtext below the node
     ctx.fillStyle = act ? (isToxin ? '#f43f5e' : (isDetox ? '#fbbf24' : pw.color)) : 'rgba(75,85,99,0.5)';
     ctx.font = '8px "JetBrains Mono"';
     ctx.fillText(n.data.sub || '', n.x, n.y + nr + 10);
   });
 }
-
 function drawParts() {
   // --- DRAW EM FIELD RIPPLES (Quantum Mode) ---
   quantumRipples = quantumRipples.filter(r => {
